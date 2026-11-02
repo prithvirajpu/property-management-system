@@ -22,6 +22,9 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "django_filters",
+    
+    "apps.accounts",
+    
 ]
 
 MIDDLEWARE = [
@@ -81,6 +84,8 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
+
+AUTH_USER_MODEL = "accounts.User"
 
 MAILERS = {
     'default': {
