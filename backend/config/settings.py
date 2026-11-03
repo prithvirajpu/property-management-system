@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.properties",
     "apps.units",
     "apps.tenants",
+    "apps.tenancies",
     
 ]
 
