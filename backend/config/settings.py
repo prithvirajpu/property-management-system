@@ -1,6 +1,7 @@
 import os
 import dj_database_url
 from datetime import timedelta
+import cloudinary
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -28,6 +29,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.properties",
     "apps.units",
+    "apps.tenants",
     
 ]
 
@@ -128,4 +130,10 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 
     "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
+    "API_KEY": os.getenv("CLOUDINARY_API_KEY"),
+    "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
 }
