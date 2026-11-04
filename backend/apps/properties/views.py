@@ -6,12 +6,10 @@ from rest_framework.exceptions import NotFound
 from apps.properties.serializers import PropertySerializer
 
 from apps.properties.services import (
-    get_properties,
-    get_property_by_id,
-    create_property,
-    update_property,
-    delete_property,
+    get_properties,get_property_by_id,create_property,
+    update_property,delete_property,get_dashboard_summary
 )
+from config.pagination import StandardResultsSetPagination
 
 class PropertyListCreateAPIView(APIView):
     permission_classes = [IsAdminUser]
@@ -19,17 +17,16 @@ class PropertyListCreateAPIView(APIView):
     def get(self, request):
 
         properties = get_properties(filters=request.query_params)
-        serializer = PropertySerializer(
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(
             properties,
-            many=True
+            request,
+            view=self
         )
+        serializer = PropertySerializer(
+            page,many=True)
 
-        return Response({
-            "success": True,
-            "message": "Properties retrieved successfully.",
-            "data": serializer.data,
-            "errors": None,
-        }, status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
 
@@ -127,11 +124,37 @@ class PropertyDetailAPIView(APIView):
     def delete(self, request, pk):
 
         property_obj = self.get_object(pk)
-        delete_property(property_obj)
+        deleted=delete_property(property_obj)
+        if not deleted:
+            return Response({
+                "success": False,
+                "message": "Cannot delete this property because it contains units.",
+                "data": None,
+                "errors": {
+                    "property": ["Delete its units first."]
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
             "success": True,
             "message": "Property deleted successfully.",
             "data": None,
+            "errors": None,
+        }, status=status.HTTP_200_OK)
+
+
+
+class DashboardSummaryAPIView(APIView):
+
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+
+        data = get_dashboard_summary()
+
+        return Response({
+            "success": True,
+            "message": "Dashboard data retrieved successfully.",
+            "data": data,
             "errors": None,
         }, status=status.HTTP_200_OK)

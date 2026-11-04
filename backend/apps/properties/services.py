@@ -68,6 +68,41 @@ def update_property(property_obj, validated_data):
 
 @transaction.atomic
 def delete_property(property_obj):
+    if property_obj.units.exists():
+        return False
     property_obj.delete()
 
     return True
+
+
+
+from apps.properties.models import Property
+from apps.units.models import Unit
+from apps.tenancies.models import Tenancy
+
+
+def get_dashboard_summary():
+
+    total_properties = Property.objects.count()
+
+    active_units = Unit.objects.count()
+
+    active_tenancies = Tenancy.objects.filter(
+        status="ACTIVE"
+    )
+
+    current_tenants = (
+        active_tenancies
+        .values("tenant_id")
+        .distinct()
+        .count()
+    )
+
+    total_active_tenancies = active_tenancies.count()
+
+    return {
+        "total_properties": total_properties,
+        "active_units": active_units,
+        "current_tenants": current_tenants,
+        "active_tenancies": total_active_tenancies,
+    }

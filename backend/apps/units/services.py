@@ -2,6 +2,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from apps.units.models import Unit
+from apps.tenancies.models import Tenancy
 
 
 def get_units(filters=None):
@@ -94,6 +95,8 @@ def update_unit(unit_obj, validated_data):
 
 @transaction.atomic
 def delete_unit(unit_obj):
+    if Tenancy.objects.filter(unit=unit_obj).exists():
+        return False
     unit_obj.delete()
 
     return True

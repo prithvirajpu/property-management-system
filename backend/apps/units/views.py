@@ -10,21 +10,20 @@ from apps.units.services import (
     get_units,get_unit_by_id,create_unit,
     update_unit,delete_unit,
 )
-
+from config.pagination import StandardResultsSetPagination
 
 class UnitListCreateAPIView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
         units = get_units(filters=request.query_params)
-        serializer = UnitSerializer(units, many=True)
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(
+            units,request,view=self
+        )
+        serializer = UnitSerializer(page, many=True)
 
-        return Response({
-            "success": True,
-            "message": "Units retrieved successfully.",
-            "data": serializer.data,
-            "errors": None,
-        }, status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
 
@@ -99,7 +98,16 @@ class UnitDetailAPIView(APIView):
 
     def delete(self, request, pk):
         unit = self.get_object(pk)
-        delete_unit(unit)
+        deleted=delete_unit(unit)
+        if not deleted:
+            return Response({
+                "success": False,
+                "message": "Cannot delete this unit because tenancy records exist.",
+                "data": None,
+                "errors": {
+                    "unit": ["This unit is associated with a tenancy."]
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
             "success": True,
