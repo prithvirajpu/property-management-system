@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -6,6 +5,8 @@ import {
     updateTenant,
     patchTenant,
 } from "../../services/tenantService";
+import { validateTenant } from "../../validations/tenantValidation";
+import { notifyError, notifySuccess } from "../../utils/toast";
 
 const TenantEdit = () => {
     const { tenantId } = useParams();
@@ -16,6 +17,7 @@ const TenantEdit = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [errors, setErrors] = useState({});
 
     useEffect(() => {
         const fetchTenant = async () => {
@@ -43,15 +45,30 @@ const TenantEdit = () => {
     }, [tenantId]);
 
     const handleChange = (e) => {
+        const { name, value } = e.target;
+
         setFormData({
             ...formData,
-            [e.target.name]: e.target.value,
+            [name]: value,
         });
+
+        setErrors((prev) => ({
+            ...prev,
+            [name]: "",
+        }));
     };
 
     const handleSubmit = async (e, partial = false) => {
         e.preventDefault();
         setError("");
+
+        const validationErrors = validateTenant(formData);
+        setErrors(validationErrors);
+
+        if (Object.keys(validationErrors).length > 0) {
+            return;
+        }
+
         setSaving(true);
 
         try {
@@ -75,83 +92,155 @@ const TenantEdit = () => {
             }
 
             navigate(`/tenants/${tenantId}`);
+            notifySuccess("Successfully updated");
         } catch (err) {
-            setError(
-                err.response?.data?.message ||
-                JSON.stringify(err.response?.data?.errors || {}) ||
-                "Failed to update tenant."
-            );
+            const errorData = err.response?.data;
+            const errorMessage = 
+                errorData?.email?.[0] || 
+                (errorData && Object.values(errorData)[0]?.[0]) || 
+                "Failed to update tenant.";
+
+            notifyError(errorMessage);
         } finally {
             setSaving(false);
         }
     };
 
-    if (loading) return <p>Loading tenant...</p>;
-    if (!formData) return <p>{error || "Tenant not found."}</p>;
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <p className="text-[#815854] font-medium text-sm animate-pulse">
+                    Loading tenant...
+                </p>
+            </div>
+        );
+    }
+
+    if (!formData) {
+        return (
+            <div className="max-w-4xl mx-auto px-4 sm:px-0 py-6">
+                <p className="text-rose-600 font-medium text-sm">
+                    {error || "Tenant not found."}
+                </p>
+            </div>
+        );
+    }
 
     return (
-        <div className="max-w-2xl">
-            <Link to={`/tenants/${tenantId}`} className="text-blue-600">
-                ← Back to Tenant
-            </Link>
+        <div className="max-w-4xl mx-auto px-4 sm:px-0 pb-8">
+            {/* Header */}
+            <div className="mb-4 flex items-center justify-between border-b border-[#815854]/15 pb-3">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#815854]">
+                    Edit Tenant
+                </h2>
+                <Link
+                    to={`/tenants/${tenantId}`}
+                    className="text-xs font-semibold text-[#815854]/70 hover:text-[#815854] underline"
+                >
+                    &larr; Cancel / Back
+                </Link>
+            </div>
 
-            <h2 className="text-2xl font-bold my-5">Edit Tenant</h2>
+            {/* Error Banner */}
+            {error && (
+                <div className="mb-4 p-3 bg-rose-50 border-l-4 border-rose-600 text-rose-800 rounded-r-lg text-xs font-medium flex items-center gap-2 shadow-sm">
+                    <span>{error}</span>
+                </div>
+            )}
 
-            {error && <p className="text-red-600 mb-4">{error}</p>}
-
+            {/* Form Container */}
             <form
                 onSubmit={(e) => handleSubmit(e, false)}
-                className="bg-white p-6 rounded-xl shadow-sm space-y-5"
+                className="bg-[#F9EBDE] border border-[#815854]/20 p-5 sm:p-6 rounded-xl shadow-sm space-y-4"
             >
-                {[
-                    { name: "full_name", label: "Full Name" },
-                    { name: "email", label: "Email", type: "email" },
-                    { name: "phone", label: "Phone" },
-                ].map((field) => (
-                    <div key={field.name}>
-                        <label className="block mb-2 font-medium">
-                            {field.label}
-                        </label>
+                {/* Row 1: Full Name & Email */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                        { name: "full_name", label: "Full Name" },
+                        { name: "email", label: "Email", type: "email" },
+                    ].map((field) => (
+                        <div key={field.name}>
+                            <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                                {field.label}
+                            </label>
+                            <input
+                                type={field.type || "text"}
+                                name={field.name}
+                                value={formData[field.name]}
+                                onChange={handleChange}
+                                className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                            />
+                            {errors[field.name] && (
+                                <p className="text-rose-600 text-[11px] mt-0.5">
+                                    {errors[field.name]}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+                </div>
 
-                        <input
-                            type={field.type || "text"}
-                            name={field.name}
-                            value={formData[field.name]}
-                            onChange={handleChange}
-                            required
-                            className="w-full border rounded-lg p-3"
-                        />
-                    </div>
-                ))}
-
+                {/* Row 2: Phone */}
                 <div>
-                    <label className="block mb-2 font-medium">Address</label>
+                    <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                        Phone
+                    </label>
+                    <input
+                        type="text"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                    />
+                    {errors.phone && (
+                        <p className="text-rose-600 text-[11px] mt-0.5">
+                            {errors.phone}
+                        </p>
+                    )}
+                </div>
+
+                {/* Row 3: Address */}
+                <div>
+                    <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                        Address
+                    </label>
                     <textarea
                         name="address"
                         value={formData.address}
                         onChange={handleChange}
-                        required
-                        rows="3"
-                        className="w-full border rounded-lg p-3"
+                        rows="2"
+                        className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm resize-none"
                     />
+                    {errors.address && (
+                        <p className="text-rose-600 text-[11px] mt-0.5">
+                            {errors.address}
+                        </p>
+                    )}
                 </div>
 
-                <div className="flex flex-wrap gap-3">
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className="bg-blue-600 text-white px-5 py-3 rounded-lg"
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#815854]/15">
+                    <Link
+                        to={`/tenants/${tenantId}`}
+                        className="bg-white hover:bg-gray-50 text-[#815854] border border-[#815854]/25 font-semibold px-4 py-2 rounded-md text-xs transition-colors shadow-xs"
                     >
-                        Save All Changes (PUT)
-                    </button>
+                        Cancel
+                    </Link>
 
                     <button
                         type="button"
                         disabled={saving}
                         onClick={(e) => handleSubmit(e, true)}
-                        className="bg-green-600 text-white px-5 py-3 rounded-lg"
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-4 py-2 rounded-md text-xs shadow-sm disabled:opacity-50 transition-all"
                     >
-                        Save Changed Fields (PATCH)
+                        {saving ? "Saving..." : "Save Changed Fields"}
+                    </button>
+
+                    <button
+                        type="submit"
+                        disabled={saving}
+                        className="bg-[#815854] hover:bg-[#815854]/90 text-[#F9EBDE] font-semibold px-4 py-2 rounded-md text-xs shadow-sm disabled:opacity-50 transition-all"
+                    >
+                        {saving ? "Saving..." : "Save All Changes"}
                     </button>
                 </div>
             </form>

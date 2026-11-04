@@ -11,20 +11,22 @@ from apps.tenants.services import (
     delete_tenant,get_tenant_documents,get_document_by_id,
     create_tenant_document,delete_tenant_document,get_document_download_url,
 )
+from config.pagination import StandardResultsSetPagination
 
 class TenantListCreateAPIView(APIView):
     permission_classes= [IsAdminUser]
     
     def get(self,request):
         tenants=get_tenants(filters=request.query_params)
-        serializer=TenantSerializer(tenants,many=True)
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(
+            tenants,
+            request,
+            view=self
+        )
+        serializer=TenantSerializer(page,many=True)
         
-        return Response({
-            "success":True,
-            "message":'Tenants retrieved successfully. ',
-            "data":serializer.data,
-            "errors":None,
-        },status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(serializer.data)
         
     def post(self,request):
         serializer=TenantSerializer(data=request.data)
@@ -89,7 +91,14 @@ class TenantDetailAPIView(APIView):
     
     def delete(self, request, pk):
         tenant = self.get_object(pk)
-        delete_tenant(tenant)
+        deleted=delete_tenant(tenant)
+        if not deleted:
+            return Response({
+                "success": False,
+                "message": "Cannot delete tenant because tenancy records exist.",
+                "data": None,
+                "errors": None
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
             "success": True,

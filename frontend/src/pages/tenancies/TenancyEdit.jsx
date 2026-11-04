@@ -1,9 +1,14 @@
-
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getTenancy, updateTenancy, patchTenancy } from "../../services/tenancyService";
+import {
+    getTenancy,
+    updateTenancy,
+    patchTenancy,
+} from "../../services/tenancyService";
 import { getTenants } from "../../services/tenantService";
 import { getUnits } from "../../services/unitService";
+import { validateTenancy } from "../../validations/tenancyValidation";
+import { notifyError, notifySuccess } from "../../utils/toast";
 
 const fields = [
     "tenant",
@@ -26,15 +31,17 @@ export default function TenancyEdit() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+    const [errors, setErrors] = useState({});
 
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [tenancyResponse, tenantResponse, unitResponse] = await Promise.all([
-                    getTenancy(tenancyId),
-                    getTenants(),
-                    getUnits(),
-                ]);
+                const [tenancyResponse, tenantResponse, unitResponse] =
+                    await Promise.all([
+                        getTenancy(tenancyId),
+                        getTenants(),
+                        getUnits(),
+                    ]);
 
                 const tenancy = tenancyResponse.data;
 
@@ -53,7 +60,10 @@ export default function TenancyEdit() {
                 setTenants(tenantResponse.data || []);
                 setUnits(unitResponse.data || []);
             } catch (err) {
-                setError(err.response?.data?.message || "Failed to load tenancy.");
+                notifyError(
+                    err.response?.data?.message ||
+                    "Failed to load tenancy."
+                );
             } finally {
                 setLoading(false);
             }
@@ -64,50 +74,71 @@ export default function TenancyEdit() {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+
+        setFormData((prev) => ({
+            ...prev,
+            [name]: value,
+        }));
+
+        setErrors((prev) => ({
+            ...prev,
+            [name]: "",
+        }));
     };
+
+    const getPayload = () => ({
+        ...formData,
+        tenant: Number(formData.tenant),
+        unit: Number(formData.unit),
+        monthly_rent: Number(formData.monthly_rent),
+        rent_due_day: Number(formData.rent_due_day),
+    });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
+
+        const validationErrors = validateTenancy(formData);
+        setErrors(validationErrors);
+
+        if (Object.keys(validationErrors).length > 0) {
+            return;
+        }
+
+        const payload = getPayload();
+
+        const original = {
+            ...originalData,
+            tenant: Number(originalData.tenant),
+            unit: Number(originalData.unit),
+            monthly_rent: Number(originalData.monthly_rent),
+            rent_due_day: Number(originalData.rent_due_day),
+        };
+
+        const changedData = {};
+
+        fields.forEach((field) => {
+            if (payload[field] !== original[field]) {
+                changedData[field] = payload[field];
+            }
+        });
+
+        if (Object.keys(changedData).length === 0) {
+            setError("No changes detected.");
+            return;
+        }
+
         setSubmitting(true);
 
         try {
-            const payload = {
-                ...formData,
-                tenant: Number(formData.tenant),
-                unit: Number(formData.unit),
-                monthly_rent: Number(formData.monthly_rent),
-                rent_due_day: Number(formData.rent_due_day),
-            };
-
-            const original = {
-                ...originalData,
-                tenant: Number(originalData.tenant),
-                unit: Number(originalData.unit),
-                monthly_rent: Number(originalData.monthly_rent),
-                rent_due_day: Number(originalData.rent_due_day),
-            };
-
-            const changedData = {};
-
-            fields.forEach((field) => {
-                if (JSON.stringify(payload[field]) !== JSON.stringify(original[field])) {
-                    changedData[field] = payload[field];
-                }
-            });
-
-            if (Object.keys(changedData).length === 0) {
-                alert("No changes detected.");
-                return;
-            }
-
             await patchTenancy(tenancyId, changedData);
             navigate(`/tenancies/${tenancyId}`);
+            notifySuccess("Successfully updated");
         } catch (err) {
-            setError(
-                JSON.stringify(err.response?.data?.errors || err.response?.data) ||
-                "Failed to update tenancy."
+            notifyError(
+                JSON.stringify(
+                    err.response?.data?.errors || err.response?.data
+                ) || "Failed to update tenancy."
             );
         } finally {
             setSubmitting(false);
@@ -116,99 +147,234 @@ export default function TenancyEdit() {
 
     const handleFullUpdate = async () => {
         setError("");
+
+        const validationErrors = validateTenancy(formData);
+        setErrors(validationErrors);
+
+        if (Object.keys(validationErrors).length > 0) {
+            return;
+        }
+
         setSubmitting(true);
 
         try {
-            await updateTenancy(tenancyId, {
-                ...formData,
-                tenant: Number(formData.tenant),
-                unit: Number(formData.unit),
-                monthly_rent: Number(formData.monthly_rent),
-                rent_due_day: Number(formData.rent_due_day),
-            });
-
+            await updateTenancy(tenancyId, getPayload());
             navigate(`/tenancies/${tenancyId}`);
+            notifySuccess("Successfully updated");
         } catch (err) {
-            setError(JSON.stringify(err.response?.data?.errors || err.response?.data) || "Failed to update tenancy.");
+            notifyError(
+                JSON.stringify(
+                    err.response?.data?.errors || err.response?.data
+                ) || "Failed to update tenancy."
+            );
         } finally {
             setSubmitting(false);
         }
     };
 
-    if (loading) return <p className="p-6">Loading tenancy...</p>;
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <p className="text-[#815854] font-medium text-sm animate-pulse">
+                    Loading tenancy...
+                </p>
+            </div>
+        );
+    }
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6">Edit Tenancy</h1>
+        <div className="max-w-4xl mx-auto px-4 sm:px-0 pb-8">
+            {/* Header */}
+            <div className="mb-4 flex items-center justify-between border-b border-[#815854]/15 pb-3">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#815854]">
+                    Edit Tenancy
+                </h2>
+                <Link
+                    to={`/tenancies/${tenancyId}`}
+                    className="text-xs font-semibold text-[#815854]/70 hover:text-[#815854] underline"
+                >
+                    &larr; Cancel / Back
+                </Link>
+            </div>
 
-            {error && <p className="text-red-600 mb-4">{error}</p>}
-
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-4">
-                <div>
-                    <label className="block mb-1">Tenant</label>
-                    <select name="tenant" value={formData.tenant || ""} onChange={handleChange} required className="w-full border p-2 rounded">
-                        <option value="">Select Tenant</option>
-                        {tenants.map((tenant) => (
-                            <option key={tenant.id} value={tenant.id}>
-                                {tenant.full_name} ({tenant.email})
-                            </option>
-                        ))}
-                    </select>
+            {/* Error Banner */}
+            {error && (
+                <div className="mb-4 p-3 bg-rose-50 border-l-4 border-rose-600 text-rose-800 rounded-r-lg text-xs font-medium flex items-center gap-2 shadow-sm">
+                    <span>{error}</span>
                 </div>
+            )}
 
-                <div>
-                    <label className="block mb-1">Unit</label>
-                    <select name="unit" value={formData.unit || ""} onChange={handleChange} required className="w-full border p-2 rounded">
-                        <option value="">Select Unit</option>
-                        {units.map((unit) => (
-                            <option key={unit.id} value={unit.id}>
-                                {unit.unit_number} - {unit.property_name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block mb-1">Monthly Rent</label>
-                    <input type="number" name="monthly_rent" value={formData.monthly_rent || ""} onChange={handleChange} min="0.01" step="0.01" required className="w-full border p-2 rounded" />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Form Container */}
+            <form
+                onSubmit={handleSubmit}
+                className="bg-[#F9EBDE] border border-[#815854]/20 p-5 sm:p-6 rounded-xl shadow-sm space-y-4"
+            >
+                {/* Row 1: Tenant & Unit */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label className="block mb-1">Start Date</label>
-                        <input type="date" name="start_date" value={formData.start_date || ""} onChange={handleChange} required className="w-full border p-2 rounded" />
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Tenant
+                        </label>
+                        <select
+                            name="tenant"
+                            value={formData.tenant || ""}
+                            onChange={handleChange}
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm font-medium"
+                        >
+                            <option value="">Select Tenant</option>
+                            {tenants.map((tenant) => (
+                                <option key={tenant.id} value={tenant.id}>
+                                    {tenant.full_name} ({tenant.email})
+                                </option>
+                            ))}
+                        </select>
+                        {errors.tenant && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.tenant}</p>
+                        )}
                     </div>
 
                     <div>
-                        <label className="block mb-1">End Date</label>
-                        <input type="date" name="end_date" value={formData.end_date || ""} onChange={handleChange} required className="w-full border p-2 rounded" />
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Unit
+                        </label>
+                        <select
+                            name="unit"
+                            value={formData.unit || ""}
+                            onChange={handleChange}
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm font-medium"
+                        >
+                            <option value="">Select Unit</option>
+                            {units.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                    Unit {unit.unit_number} - {unit.property_name}
+                                </option>
+                            ))}
+                        </select>
+                        {errors.unit && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.unit}</p>
+                        )}
                     </div>
                 </div>
 
-                <div>
-                    <label className="block mb-1">Rent Due Day</label>
-                    <input type="number" name="rent_due_day" value={formData.rent_due_day || ""} onChange={handleChange} min="1" max="31" required className="w-full border p-2 rounded" />
+                {/* Row 2: Monthly Rent & Rent Due Day */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Monthly Rent
+                        </label>
+                        <input
+                            type="number"
+                            name="monthly_rent"
+                            value={formData.monthly_rent || ""}
+                            onChange={handleChange}
+                            min="0.01"
+                            step="0.01"
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                        />
+                        {errors.monthly_rent && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.monthly_rent}</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Rent Due Day
+                        </label>
+                        <input
+                            type="number"
+                            name="rent_due_day"
+                            value={formData.rent_due_day || ""}
+                            onChange={handleChange}
+                            min="1"
+                            max="31"
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                        />
+                        {errors.rent_due_day && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.rent_due_day}</p>
+                        )}
+                    </div>
                 </div>
 
+                {/* Row 3: Start Date & End Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Start Date
+                        </label>
+                        <input
+                            type="date"
+                            name="start_date"
+                            value={formData.start_date || ""}
+                            onChange={handleChange}
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                        />
+                        {errors.start_date && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.start_date}</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            End Date
+                        </label>
+                        <input
+                            type="date"
+                            name="end_date"
+                            value={formData.end_date || ""}
+                            onChange={handleChange}
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                        />
+                        {errors.end_date && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.end_date}</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Row 4: Status */}
                 <div>
-                    <label className="block mb-1">Status</label>
-                    <select name="status" value={formData.status || "ACTIVE"} onChange={handleChange} className="w-full border p-2 rounded">
+                    <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                        Status
+                    </label>
+                    <select
+                        name="status"
+                        value={formData.status || "ACTIVE"}
+                        onChange={handleChange}
+                        className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm font-medium"
+                    >
                         <option value="ACTIVE">Active</option>
                         <option value="COMPLETED">Completed</option>
                         <option value="TERMINATED">Terminated</option>
                     </select>
+                    {errors.status && (
+                        <p className="text-rose-600 text-[11px] mt-0.5">{errors.status}</p>
+                    )}
                 </div>
 
-                <div className="flex gap-3">
-                    <button type="submit" disabled={submitting} className="bg-blue-600 text-white px-5 py-2 rounded disabled:opacity-50">
-                        {submitting ? "Saving..." : "Save Changes (PATCH)"}
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#815854]/15">
+                    <Link
+                        to={`/tenancies/${tenancyId}`}
+                        className="bg-white hover:bg-gray-50 text-[#815854] border border-[#815854]/25 font-semibold px-4 py-2 rounded-md text-xs transition-colors shadow-xs"
+                    >
+                        Cancel
+                    </Link>
+
+                    <button
+                        type="button"
+                        onClick={handleFullUpdate}
+                        disabled={submitting}
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-4 py-2 rounded-md text-xs shadow-sm disabled:opacity-50 transition-all"
+                    >
+                        {submitting ? "Saving..." : "Save Full Update"}
                     </button>
 
-                    <button type="button" onClick={handleFullUpdate} disabled={submitting} className="bg-green-600 text-white px-5 py-2 rounded disabled:opacity-50">
-                        Save Full Update (PUT)
+                    <button
+                        type="submit"
+                        disabled={submitting}
+                        className="bg-[#815854] hover:bg-[#815854]/90 text-[#F9EBDE] font-semibold px-4 py-2 rounded-md text-xs shadow-sm disabled:opacity-50 transition-all"
+                    >
+                        {submitting ? "Saving..." : "Save Changes"}
                     </button>
-
-                    <Link to={`/tenancies/${tenancyId}`} className="border px-5 py-2 rounded">Cancel</Link>
                 </div>
             </form>
         </div>

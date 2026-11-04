@@ -6,6 +6,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.tenancies.serializers import TenancySerializer
 from apps.tenancies import services
+from config.pagination import StandardResultsSetPagination
 
 class TenancyListCreateAPIView(APIView):
     permission_classes = [IsAdminUser]
@@ -22,18 +23,16 @@ class TenancyListCreateAPIView(APIView):
         }
 
         tenancies = services.get_tenancies(filters)
-        serializer = TenancySerializer(tenancies, many=True)
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(
+            tenancies,request,view=self)
+        serializer = TenancySerializer(page, many=True)
 
-        return Response({
-            "success": True,
-            "message": "Tenancies retrieved successfully.",
-            "data": serializer.data,
-            "errors": None,
-        }, status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
+        
         serializer = TenancySerializer(data=request.data)
-
         if serializer.is_valid():
             try:
                 tenancy = services.create_tenancy(
@@ -56,7 +55,6 @@ class TenancyListCreateAPIView(APIView):
                     "data": None,
                     "errors": error.detail,
                 }, status=status.HTTP_400_BAD_REQUEST)
-
         return Response({
             "success": False,
             "message": "Tenancy creation failed.",
@@ -207,7 +205,7 @@ class TenancyDetailAPIView(APIView):
 
         try:
             services.delete_tenancy(tenancy)
-
+            
             return Response({
                 "success": True,
                 "message": "Tenancy deleted successfully.",
@@ -219,7 +217,7 @@ class TenancyDetailAPIView(APIView):
 
             return Response({
                 "success": False,
-                "message": "Tenancy deletion failed.",
+                "message": 'Can not delete because of the relation exists',
                 "data": None,
                 "errors": error.detail,
             }, status=status.HTTP_400_BAD_REQUEST)

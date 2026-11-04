@@ -36,3 +36,8 @@ export const deleteProperty = async (propertyId) => {
     const response = await api.delete(`/properties/${propertyId}/`);
     return response.data;
 };
+
+export const getDashboardSummary = async () => {
+    const response = await api.get(`/properties/summary/`);
+    return response.data;
+};

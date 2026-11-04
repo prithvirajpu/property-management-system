@@ -1,11 +1,10 @@
 import uuid
 import cloudinary.uploader
 import cloudinary.utils
-
 from django.db import transaction
-from django.conf import settings
 from django.db.models import Q
 from apps.tenants.models import Tenant,TenantDocument
+from apps.tenancies.models import Tenancy
 
 def get_tenants(filters=None):
     filters=filters or {}
@@ -14,7 +13,8 @@ def get_tenants(filters=None):
     if search:
         tenants=tenants.filter(Q(full_name__icontains=search)|
                                Q(email__icontains=search) |
-                               Q(phone__icontains=search))
+                               Q(phone__icontains=search) |
+                               Q(address__icontains=search))
     ordering=filters.get('ordering')
     allowed_ordering = [
         "full_name",
@@ -42,6 +42,8 @@ def update_tenant(tenant_obj,validated_data):
 
 @transaction.atomic
 def delete_tenant(tenant_obj):
+    if Tenancy.objects.filter(tenant=tenant_obj).exists():
+        return False
     tenant_obj.delete()
     return True
 

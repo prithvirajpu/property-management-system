@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getUnit } from "../../services/unitService";
@@ -25,55 +24,130 @@ const UnitDetail = () => {
         fetchUnit();
     }, [unitId]);
 
-    if (loading) return <p>Loading unit...</p>;
-    if (error) return <p className="text-red-600">{error}</p>;
-    if (!unit) return <p>Unit not found.</p>;
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <p className="text-[#815854] font-medium text-sm animate-pulse">
+                    Loading unit details...
+                </p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="max-w-4xl mx-auto px-4 sm:px-0 py-6">
+                <div className="p-4 bg-rose-50 border-l-4 border-rose-600 text-rose-800 rounded-r-lg text-sm font-medium shadow-sm">
+                    {error}
+                </div>
+            </div>
+        );
+    }
+
+    if (!unit) {
+        return (
+            <div className="max-w-4xl mx-auto px-4 sm:px-0 py-6">
+                <div className="p-6 bg-[#F9EBDE] border border-[#815854]/20 rounded-xl text-center text-[#815854] font-medium">
+                    Unit not found.
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div>
-            <Link to="/units" className="text-blue-600">
-                ← Back to Units
-            </Link>
+        <div className="max-w-4xl mx-auto px-4 sm:px-0 pb-8 space-y-4">
+            {/* Header & Navigation */}
+            <div className="flex items-center justify-between border-b border-[#815854]/15 pb-3">
+                <Link
+                    to="/units"
+                    className="text-xs font-semibold text-[#815854]/70 hover:text-[#815854] underline transition-colors"
+                >
+                    &larr; Back to Units
+                </Link>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm mt-5">
-                <h2 className="text-2xl font-bold mb-5">
-                    Unit {unit.unit_number}
-                </h2>
+                <Link
+                    to={`/units/${unit.id}/edit`}
+                    className="bg-[#815854] hover:bg-[#815854]/90 text-[#F9EBDE] font-semibold px-4 py-2 rounded-md text-xs shadow-sm transition-all"
+                >
+                    Edit Unit
+                </Link>
+            </div>
 
-                <div className="space-y-3">
-                    <p><strong>Property:</strong> {unit.property_name || unit.property}</p>
-                    <p><strong>Unit Type:</strong> {unit.unit_type}</p>
-                    <p><strong>Monthly Rent:</strong> ₹{unit.monthly_rent}</p>
-                    <p><strong>Area:</strong> {unit.area ?? "N/A"}</p>
-                    <p><strong>Floor:</strong> {unit.floor ?? "N/A"}</p>
-                    <p><strong>Description:</strong> {unit.description || "N/A"}</p>
+            {/* Main Details Card */}
+            <div className="bg-[#F9EBDE] border border-[#815854]/20 rounded-xl p-5 sm:p-6 shadow-sm space-y-6">
+                {/* Title */}
+                <div className="border-b border-[#815854]/15 pb-3 flex items-center justify-between">
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#815854]">
+                        Unit {unit.unit_number}
+                    </h2>
+                    <span className="bg-white border border-[#815854]/20 text-[#815854] px-3 py-1 rounded-full text-xs font-semibold">
+                        {unit.unit_type}
+                    </span>
                 </div>
 
-                <div className="mt-6">
-                    <h3 className="font-semibold mb-3">Features</h3>
+                {/* Details Section Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm text-[#815854]">
+                    <div className="bg-white/60 border border-[#815854]/10 p-3.5 rounded-lg space-y-1">
+                        <span className="text-[11px] font-semibold text-[#815854]/70 uppercase tracking-wider block">
+                            Property
+                        </span>
+                        <p className="font-medium text-[#815854]">{unit.property_name || unit.property}</p>
+                    </div>
+
+                    <div className="bg-white/60 border border-[#815854]/10 p-3.5 rounded-lg space-y-1">
+                        <span className="text-[11px] font-semibold text-[#815854]/70 uppercase tracking-wider block">
+                            Monthly Rent
+                        </span>
+                        <p className="font-medium text-[#815854]">₹{unit.monthly_rent}</p>
+                    </div>
+
+                    <div className="bg-white/60 border border-[#815854]/10 p-3.5 rounded-lg space-y-1">
+                        <span className="text-[11px] font-semibold text-[#815854]/70 uppercase tracking-wider block">
+                            Area
+                        </span>
+                        <p className="font-medium text-[#815854]">{unit.area ? `${unit.area} sq. ft.` : "N/A"}</p>
+                    </div>
+
+                    <div className="bg-white/60 border border-[#815854]/10 p-3.5 rounded-lg space-y-1">
+                        <span className="text-[11px] font-semibold text-[#815854]/70 uppercase tracking-wider block">
+                            Floor
+                        </span>
+                        <p className="font-medium text-[#815854]">{unit.floor ?? "N/A"}</p>
+                    </div>
+
+                    <div className="sm:col-span-2 bg-white/60 border border-[#815854]/10 p-3.5 rounded-lg space-y-1">
+                        <span className="text-[11px] font-semibold text-[#815854]/70 uppercase tracking-wider block">
+                            Description
+                        </span>
+                        <p className="font-medium text-[#815854] leading-relaxed">
+                            {unit.description || "N/A"}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Features Section */}
+                <div className="pt-2 border-t border-[#815854]/15">
+                    <h3 className="font-semibold text-sm sm:text-base text-[#815854] mb-2.5">
+                        Features & Amenities
+                    </h3>
 
                     <div className="flex flex-wrap gap-2">
                         {unit.features?.length ? (
                             unit.features.map((feature) => (
                                 <span
                                     key={feature}
-                                    className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full"
+                                    className="bg-white border border-[#815854]/20 text-[#815854] px-3 py-1 rounded-full text-xs font-medium shadow-xs"
                                 >
                                     {feature}
                                 </span>
                             ))
                         ) : (
-                            <p className="text-gray-500">No features added.</p>
+                            <p className="text-xs text-[#815854]/60 italic">
+                                No features added.
+                            </p>
                         )}
                     </div>
                 </div>
-
-                <Link
-                    to={`/units/${unit.id}/edit`}
-                    className="inline-block mt-6 bg-blue-600 text-white px-5 py-2 rounded-lg"
-                >
-                    Edit Unit
-                </Link>
             </div>
         </div>
     );

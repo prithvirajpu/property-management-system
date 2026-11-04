@@ -44,6 +44,8 @@ class TenancySerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+    def get_validators(self):
+        return []
 
     def validate(self, attrs):
 

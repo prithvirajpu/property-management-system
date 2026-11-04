@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -6,6 +5,14 @@ import {
     updateProperty,
     patchProperty,
 } from "../../services/propertyService";
+import { validateProperty } from "../../validations/PropertyValidation";
+import {
+    notifySuccess,
+    notifyError,
+    notifyWarning,
+    notifyInfo,
+} from "../../utils/toast";
+import { handleApiError } from "../../utils/errorHandler";
 
 const initialForm = {
     name: "",
@@ -26,6 +33,7 @@ export default function PropertyEdit() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+    const [errors, setErrors] = useState({});
 
     useEffect(() => {
         const loadProperty = async () => {
@@ -60,22 +68,48 @@ export default function PropertyEdit() {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
+
         setFormData((prev) => ({
             ...prev,
             [name]: value,
+        }));
+
+        setErrors((prev) => ({
+            ...prev,
+            [name]: "",
         }));
     };
 
     const preparePayload = () => ({
         ...formData,
+        name: formData.name.trim(),
+        address: formData.address.trim(),
+        location: formData.location.trim(),
+        description: formData.description.trim(),
         features: formData.features
             .split(",")
             .map((feature) => feature.trim())
             .filter(Boolean),
     });
 
+    // Validate before PATCH or PUT
+    const validateForm = () => {
+        const validationErrors = validateProperty({
+            ...formData,
+            features: formData.features
+                .split(",")
+                .map((feature) => feature.trim())
+                .filter(Boolean),
+        });
+
+        setErrors(validationErrors);
+
+        return Object.keys(validationErrors).length === 0;
+    };
+
     const handlePatch = async () => {
         const payload = preparePayload();
+
         const originalPayload = {
             ...originalData,
             features: originalData.features
@@ -96,7 +130,7 @@ export default function PropertyEdit() {
         });
 
         if (Object.keys(changedData).length === 0) {
-            alert("No changes detected.");
+            notifyInfo("No changes detected.");
             return;
         }
 
@@ -106,17 +140,18 @@ export default function PropertyEdit() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
+
+        if (!validateForm()) {
+            return;
+        }
         setSubmitting(true);
 
         try {
             await handlePatch();
             navigate(`/properties/${propertyId}`);
+            notifySuccess("Successfully submitted.");
         } catch (err) {
-            setError(
-                JSON.stringify(
-                    err.response?.data?.errors || err.response?.data
-                ) || "Failed to update property."
-            );
+            handleApiError(err);
         } finally {
             setSubmitting(false);
         }
@@ -124,13 +159,19 @@ export default function PropertyEdit() {
 
     const handlePut = async () => {
         setError("");
+
+        if (!validateForm()) {
+            return;
+        }
+
         setSubmitting(true);
 
         try {
             await updateProperty(propertyId, preparePayload());
             navigate(`/properties/${propertyId}`);
+            notifySuccess("Successfully submitted.");
         } catch (err) {
-            setError(
+            notifyError(
                 JSON.stringify(
                     err.response?.data?.errors || err.response?.data
                 ) || "Failed to update property."
@@ -140,73 +181,127 @@ export default function PropertyEdit() {
         }
     };
 
-    if (loading) return <p className="p-6">Loading property...</p>;
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <p className="text-[#815854] font-medium text-sm animate-pulse">
+                    Loading property...
+                </p>
+            </div>
+        );
+    }
 
     if (!originalData) {
-        return <p className="p-6 text-red-600">{error || "Property not found."}</p>;
+        return (
+            <div className="max-w-4xl mx-auto px-4 sm:px-0 py-6">
+                <p className="text-rose-600 font-medium text-sm">
+                    {error || "Property not found."}
+                </p>
+            </div>
+        );
     }
 
     return (
-        <div className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6">Edit Property</h1>
+        <div className="max-w-4xl mx-auto px-4 sm:px-0 pb-8">
+            {/* Header */}
+            <div className="mb-4 flex items-center justify-between border-b border-[#815854]/15 pb-3">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#815854]">
+                    Edit Property
+                </h2>
+                <Link
+                    to={`/properties/${propertyId}`}
+                    className="text-xs font-semibold text-[#815854]/70 hover:text-[#815854] underline"
+                >
+                    &larr; Cancel / Back
+                </Link>
+            </div>
 
+            {/* Error Banner */}
             {error && (
-                <p className="text-red-600 mb-4">{error}</p>
+                <div className="mb-4 p-3 bg-rose-50 border-l-4 border-rose-600 text-rose-800 rounded-r-lg text-xs font-medium flex items-center gap-2 shadow-sm">
+                    <span>{error}</span>
+                </div>
             )}
 
+            {/* Form Container */}
             <form
                 onSubmit={handleSubmit}
-                className="bg-white p-6 rounded-lg shadow space-y-4"
+                className="bg-[#F9EBDE] border border-[#815854]/20 p-5 sm:p-6 rounded-xl shadow-sm space-y-4"
             >
-                <div>
-                    <label className="block mb-1">Property Name</label>
-                    <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        required
-                        className="w-full border p-2 rounded"
-                    />
+                {/* Row 1: Name & Location */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Property Name
+                        </label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
+                            placeholder="e.g. Sunset Heights"
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                        />
+                        {errors.name && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.name}</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Location
+                        </label>
+                        <input
+                            type="text"
+                            name="location"
+                            value={formData.location}
+                            onChange={handleChange}
+                            placeholder="e.g. Downtown / Kochi"
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm"
+                        />
+                        {errors.location && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.location}</p>
+                        )}
+                    </div>
                 </div>
 
-                <div>
-                    <label className="block mb-1">Address</label>
-                    <textarea
-                        name="address"
-                        value={formData.address}
-                        onChange={handleChange}
-                        required
-                        rows="3"
-                        className="w-full border p-2 rounded"
-                    />
+                {/* Row 2: Address & Description */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Address
+                        </label>
+                        <textarea
+                            name="address"
+                            value={formData.address}
+                            onChange={handleChange}
+                            rows="2"
+                            placeholder="Full address..."
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm resize-none"
+                        />
+                        {errors.address && (
+                            <p className="text-rose-600 text-[11px] mt-0.5">{errors.address}</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block mb-1 text-xs font-semibold text-[#815854]">
+                            Description
+                        </label>
+                        <textarea
+                            name="description"
+                            value={formData.description}
+                            onChange={handleChange}
+                            rows="2"
+                            placeholder="Brief description..."
+                            className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm resize-none"
+                        />
+                    </div>
                 </div>
 
+                {/* Row 3: Features */}
                 <div>
-                    <label className="block mb-1">Location</label>
-                    <input
-                        type="text"
-                        name="location"
-                        value={formData.location}
-                        onChange={handleChange}
-                        required
-                        className="w-full border p-2 rounded"
-                    />
-                </div>
-
-                <div>
-                    <label className="block mb-1">Description</label>
-                    <textarea
-                        name="description"
-                        value={formData.description}
-                        onChange={handleChange}
-                        rows="3"
-                        className="w-full border p-2 rounded"
-                    />
-                </div>
-
-                <div>
-                    <label className="block mb-1">
+                    <label className="block mb-1 text-xs font-semibold text-[#815854]">
                         Features (comma separated)
                     </label>
                     <textarea
@@ -214,35 +309,36 @@ export default function PropertyEdit() {
                         value={formData.features}
                         onChange={handleChange}
                         placeholder="Parking, Swimming Pool, Security"
-                        rows="3"
-                        className="w-full border p-2 rounded"
+                        rows="2"
+                        className="w-full bg-white border border-[#815854]/25 rounded-md px-3 py-2 text-[#815854] placeholder-[#815854]/40 outline-none focus:ring-1 focus:ring-[#815854] text-xs shadow-sm resize-none"
                     />
                 </div>
 
-                <div className="flex flex-wrap gap-3">
-                    <button
-                        type="submit"
-                        disabled={submitting}
-                        className="bg-blue-600 text-white px-5 py-2 rounded disabled:opacity-50"
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#815854]/15">
+                    <Link
+                        to={`/properties/${propertyId}`}
+                        className="bg-white hover:bg-gray-50 text-[#815854] border border-[#815854]/25 font-semibold px-4 py-2 rounded-md text-xs transition-colors shadow-xs"
                     >
-                        {submitting ? "Saving..." : "Save Changes (PATCH)"}
-                    </button>
+                        Cancel
+                    </Link>
 
                     <button
                         type="button"
                         onClick={handlePut}
                         disabled={submitting}
-                        className="bg-green-600 text-white px-5 py-2 rounded disabled:opacity-50"
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-4 py-2 rounded-md text-xs shadow-sm disabled:opacity-50 transition-all"
                     >
-                        Save Full Update (PUT)
+                        {submitting ? "Saving..." : "Save Full Update"}
                     </button>
 
-                    <Link
-                        to={`/properties/${propertyId}`}
-                        className="border px-5 py-2 rounded"
+                    <button
+                        type="submit"
+                        disabled={submitting}
+                        className="bg-[#815854] hover:bg-[#815854]/90 text-[#F9EBDE] font-semibold px-4 py-2 rounded-md text-xs shadow-sm disabled:opacity-50 transition-all"
                     >
-                        Cancel
-                    </Link>
+                        {submitting ? "Saving..." : "Save Changes"}
+                    </button>
                 </div>
             </form>
         </div>
